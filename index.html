@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>G3X Flight Map</title>
+  <link rel="stylesheet" href="style.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha512-VuZ0E0Y2vCw..."
+    crossorigin=""
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <h1>G3X Flight Map Generator ✈️</h1>
+  <p>Upload your Garmin G3X CSV flight logs to visualize your summer route.</p>
+
+  <input type="file" id="file-input" multiple accept=".csv" />
+  <div id="map"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+body {
+  font-family: system-ui, sans-serif;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  background: #f7f7f7;
+}
+
+h1 {
+  margin: 16px 0 8px;
+}
+
+#file-input {
+  margin: 12px;
+  padding: 8px;
+  border: 1px solid #aaa;
+  border-radius: 8px;
+  background: #fff;
+}
+
+#map {
+  height: 90vh;
+  width: 100%;
+  border-top: 2px solid #ccc;
+}
