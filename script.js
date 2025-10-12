@@ -131,6 +131,25 @@ function processFile(file, isFirst, isLast) {
           opacity: 0.9,
         }).addTo(map);
 
+        // Add arrow decorations to show flight direction
+        L.polylineDecorator(polyline, {
+          patterns: [
+            {
+              offset: 25, // Start 25% along the path
+              repeat: 50, // Repeat every 50 pixels
+              symbol: L.Symbol.arrowHead({
+                pixelSize: 12,
+                polygon: false,
+                pathOptions: {
+                  color: color,
+                  fillOpacity: 1,
+                  weight: 2
+                }
+              })
+            }
+          ]
+        }).addTo(map);
+
         // Add departure airport marker and label
         if (departureAirport) {
           const startMarker = L.circleMarker(start, {
