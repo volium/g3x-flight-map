@@ -1,6 +1,9 @@
 // Initialize Leaflet map
 const map = L.map("map").setView([39, -98], 4);
 
+// Layer group for circle markers
+const circleMarkersGroup = L.layerGroup().addTo(map);
+
 // Keep track of labeled airports
 const labeledAirports = new Map(); // Map of airport code to label and connector info
 
@@ -10,6 +13,17 @@ const BASE_LABEL_MARGIN = 20; // Base margin around airport point for label plac
 const MAX_PIXEL_DISTANCE = 100; // Maximum pixels away from airport
 const MIN_ZOOM = 4; // Minimum zoom level for reference
 const MAX_ZOOM = 12; // Maximum zoom level for reference
+const CIRCLE_MARKER_MIN_ZOOM = 13; // Minimum zoom level to show circle markers
+
+// Handle circle marker visibility based on zoom
+map.on('zoomend', () => {
+    const zoom = map.getZoom();
+    if (zoom >= CIRCLE_MARKER_MIN_ZOOM) {
+        circleMarkersGroup.addTo(map);
+    } else {
+        circleMarkersGroup.remove();
+    }
+});
 
 // Get zoom-adjusted distances
 function getZoomAdjustedValues(zoom) {
@@ -291,7 +305,7 @@ function processFile(file, isFirst, isLast) {
             fillOpacity: 1,
           })
             .bindPopup(`<b>${departureAirport}</b><br>Departure ${file.name}`)
-            .addTo(map);
+            .addTo(circleMarkersGroup);
 
           // Add airport code label for departure if not already labeled
           if (!labeledAirports.has(departureAirport)) {
@@ -314,7 +328,7 @@ function processFile(file, isFirst, isLast) {
             fillOpacity: 0.9,
           })
             .bindPopup(`<b>${arrivalAirport}</b><br>Arrival`)
-            .addTo(map);
+            .addTo(circleMarkersGroup);
 
           // Add airport code label for arrival if not already labeled
           if (!labeledAirports.has(arrivalAirport)) {
