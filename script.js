@@ -1,8 +1,114 @@
 // Initialize Leaflet map
 const map = L.map("map").setView([39, -98], 4);
 
-// Keep track of labeled airports to avoid duplicates
-const labeledAirports = new Set();
+// Keep track of labeled airports
+const labeledAirports = new Map(); // Map of airport code to label and connector info
+
+// Label management
+const BASE_MIN_LABEL_DISTANCE = 50; // Base minimum pixels between labels
+const BASE_LABEL_MARGIN = 20; // Base margin around airport point for label placement
+const MAX_PIXEL_DISTANCE = 100; // Maximum pixels away from airport
+const MIN_ZOOM = 4; // Minimum zoom level for reference
+const MAX_ZOOM = 12; // Maximum zoom level for reference
+
+// Get zoom-adjusted distances
+function getZoomAdjustedValues(zoom) {
+    const zoomFactor = Math.max(0.3, (zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM));
+    return {
+        labelDistance: BASE_MIN_LABEL_DISTANCE * (1 - zoomFactor * 0.7), // Reduce distance at higher zooms
+        labelMargin: BASE_LABEL_MARGIN * (1 - zoomFactor * 0.7)
+    };
+}
+
+// Function to find non-overlapping position for label
+function adjustLabelPosition(airport, position, existingLabels) {
+    const zoom = map.getZoom();
+    const { labelDistance, labelMargin } = getZoomAdjustedValues(zoom);
+    const point = map.latLngToContainerPoint(position);
+
+    // Start with default offset and spiral outward until no overlap
+    let angle = 0;
+    let radius = labelMargin;
+    const maxAttempts = 32; // Limit search iterations
+
+    for (let i = 0; i < maxAttempts; i++) {
+        // Calculate new position in spiral pattern
+        const x = radius * Math.cos(angle);
+        const y = radius * Math.sin(angle);
+        const testPoint = point.add(L.point(x, y));
+
+        // Check if we've gone too far from the airport
+        if (testPoint.distanceTo(point) > MAX_PIXEL_DISTANCE) {
+            break; // Stop searching if we're too far
+        }
+
+        // Convert back to LatLng for actual placement
+        const newPos = map.containerPointToLatLng(testPoint);
+
+        // Check for overlaps
+        let hasOverlap = false;
+        for (const [code, details] of existingLabels) {
+            if (code === airport) continue;
+            const labelPoint = map.latLngToContainerPoint(details.labelPosition);
+            const distance = testPoint.distanceTo(labelPoint);
+            if (distance < labelDistance) {
+                hasOverlap = true;
+                break;
+            }
+        }
+
+        if (!hasOverlap) {
+            return newPos;
+        }
+
+        // Spiral outward
+        angle += Math.PI / 4;
+        if (angle >= Math.PI * 2) {
+            angle = 0;
+            radius += labelMargin;
+        }
+    }
+
+    // If no good position found, place it at maximum allowed distance
+    const fallbackAngle = Math.random() * Math.PI * 2;
+    const fallbackX = MAX_PIXEL_DISTANCE * Math.cos(fallbackAngle);
+    const fallbackY = MAX_PIXEL_DISTANCE * Math.sin(fallbackAngle);
+    return map.containerPointToLatLng(point.add(L.point(fallbackX, fallbackY)));
+}
+
+// Create airport label with connector line if needed
+function createAirportLabel(airport, position, color) {
+    const adjustedPosition = adjustLabelPosition(airport, position, labeledAirports);
+
+    // Create label
+    const label = L.marker(adjustedPosition, {
+        icon: L.divIcon({
+            className: 'airport-label',
+            html: `<div style="color: ${color}; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px;">${airport}</div>`,
+            iconSize: [40, 20],
+            iconAnchor: [20, 10]
+        })
+    }).addTo(map);
+
+    // Create connector line if label was moved
+    let connector = null;
+    if (adjustedPosition.lat !== position.lat || adjustedPosition.lng !== position.lng) {
+        connector = L.polyline([position, adjustedPosition], {
+            color: color,
+            weight: 1,
+            opacity: 0.5,
+            dashArray: '3,3'
+        }).addTo(map);
+    }
+
+    return {
+        label,
+        connector,
+        position: position,
+        labelPosition: adjustedPosition,
+        color: color
+    };
+}
 
 // Esri World Imagery basemap (legal, free, beautiful)
 L.tileLayer(
@@ -80,7 +186,33 @@ document.getElementById("file-input").addEventListener("change", (event) => {
   const files = Array.from(event.target.files);
   files.sort((a, b) => a.name.localeCompare(b.name)); // chronological order
   lastFlight = null; // Reset on new file upload
-  labeledAirports.clear(); // Clear labeled airports for new upload
+  // Clear and remove all existing labels and connectors
+  labeledAirports.forEach((details) => {
+    if (details.label) {
+      details.label.remove();
+    }
+    if (details.connector) {
+      details.connector.remove();
+    }
+  });
+  labeledAirports.clear();
+
+  // Add handler for zoom changes to update label positions
+  map.on('zoomend', () => {
+    // Store existing airports and clear the map
+    const existingAirports = Array.from(labeledAirports.entries());
+    labeledAirports.forEach((details) => {
+      if (details.label) details.label.remove();
+      if (details.connector) details.connector.remove();
+    });
+    labeledAirports.clear();
+
+    // Recreate labels with new positions
+    existingAirports.forEach(([code, details]) => {
+      const newDetails = createAirportLabel(code, details.position, details.color);
+      labeledAirports.set(code, newDetails);
+    });
+  });
   files.forEach((file, index) => processFile(file, index === 0, index === files.length - 1));
 });
 
@@ -163,15 +295,8 @@ function processFile(file, isFirst, isLast) {
 
           // Add airport code label for departure if not already labeled
           if (!labeledAirports.has(departureAirport)) {
-            L.marker(start, {
-              icon: L.divIcon({
-                className: 'airport-label',
-                html: `<div style="color: ${color}; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px;">${departureAirport}</div>`,
-                iconSize: [40, 20],
-                iconAnchor: [20, 0]
-              })
-            }).addTo(map);
-            labeledAirports.add(departureAirport);
+            const details = createAirportLabel(departureAirport, start, color);
+            labeledAirports.set(departureAirport, details);
           }
         }
 
@@ -188,15 +313,8 @@ function processFile(file, isFirst, isLast) {
 
           // Add airport code label for arrival if not already labeled
           if (!labeledAirports.has(arrivalAirport)) {
-            L.marker(end, {
-              icon: L.divIcon({
-                className: 'airport-label',
-                html: `<div style="color: ${color}; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px;">${arrivalAirport}</div>`,
-                iconSize: [40, 20],
-                iconAnchor: [20, 30]
-              })
-            }).addTo(map);
-            labeledAirports.add(arrivalAirport);
+            const details = createAirportLabel(arrivalAirport, end, color);
+            labeledAirports.set(arrivalAirport, details);
           }
         }
 
