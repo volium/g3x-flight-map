@@ -224,21 +224,122 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// Find closest airport to given coordinates
+// Find closest airport to given coordinates with type priority
 function findNearestAirport(lat, lon) {
   let closest = null;
   let minDistance = Infinity;
 
+  // Airport type priority (higher = better)
+  const typePriority = {
+    'closed': -1,
+    'heliport': 0,
+    'seaplane_base': 1,
+    'small_airport': 2,
+    'medium_airport': 3,
+    'large_airport': 3  // Make equal to medium_airport to not override closer airports
+  };
+
+  console.log(`Searching for airports near lat: ${lat}, lon: ${lon}`);
+
+  // Keep track of all nearby airports for debugging
+  const nearbyAirports = [];
+
+  // First pass: find all airports within 1km
+  const closeAirports = [];
+
   for (const [code, airport] of Object.entries(airports)) {
     const distance = getDistance(lat, lon, airport.lat, airport.lon);
-    if (distance < minDistance) {
-      minDistance = distance;
-      closest = { code, ...airport, distance };
+
+    // Collect all airports within 50km for debugging
+    if (distance <= 50) {
+      nearbyAirports.push({
+        code,
+        ...airport,
+        distance,
+        priority: typePriority[airport.type] || 0
+      });
+    }
+
+    const currentPriority = typePriority[airport.type] || 0;
+    const closestPriority = closest ? typePriority[closest.type] || 0 : -1;
+
+    // Keep track of all airports within 50km for debugging
+    if (distance <= 50) {
+      nearbyAirports.push({
+        code,
+        ...airport,
+        distance,
+        priority: typePriority[airport.type] || 0
+      });
+    }
+
+    // Track all airports within 1km
+    if (distance <= 1) {
+      closeAirports.push({
+        code,
+        ...airport,
+        distance,
+        priority: typePriority[airport.type] || 0
+      });
+    }
+
+    // If we don't have any close airports (<1km), use normal distance and priority logic
+    if (closeAirports.length === 0) {
+      const currentPriority = typePriority[airport.type] || 0;
+      const closestPriority = closest ? typePriority[closest.type] || 0 : -1;
+
+      // Update closest if:
+      // 1. No airport found yet, or
+      // 2. This airport type has higher priority, or
+      // 3. Same priority but closer distance
+      if (!closest ||
+          currentPriority > closestPriority ||
+          (currentPriority === closestPriority && distance < minDistance)) {
+        console.log(`New closest airport: ${code} (${airport.type || 'unknown type'}) at ${distance.toFixed(2)}km` +
+                    `${closest ? ` replacing ${closest.code}` : ''}`);
+        minDistance = distance;
+        closest = { code, ...airport, distance };
+      }
     }
   }
 
-  // Only return airport if it's within 50km (roughly 30 miles)
-  return closest && closest.distance <= 50 ? closest : null;
+  // If we have airports within 1km, pick the one with highest priority
+  if (closeAirports.length > 0) {
+    console.log(`Found ${closeAirports.length} airports within 1km`);
+
+    // Sort by type priority first, then by distance
+    closeAirports.sort((a, b) => {
+      const priorityDiff = b.priority - a.priority;
+      return priorityDiff !== 0 ? priorityDiff : a.distance - b.distance;
+    });
+
+    closest = closeAirports[0];
+    console.log(`Selected closest airport ${closest.code} (${closest.type || 'unknown type'}) at ${closest.distance.toFixed(2)}km`);
+  }
+
+  // Always log nearby airports for debugging
+  if (nearbyAirports.length > 0) {
+    console.log('All nearby airports:',
+      nearbyAirports
+        .sort((a, b) => a.distance - b.distance)
+        .map(a => ({
+          code: a.code,
+          name: a.name,
+          type: a.type || 'unknown',
+          priority: a.priority,
+          distance: a.distance.toFixed(2) + 'km'
+        }))
+    );
+  } else {
+    console.log('No airports found within 50km');
+  }
+
+  // Ensure we have the type information
+  if (closest && !closest.type) {
+    console.warn('Missing type information for airport:', closest.code);
+  }
+
+  return closest;
 }
 
 // Extract airport code from filename (expected format: log_YYYYMMDD_HHMMSS_ICAO.csv)
@@ -249,15 +350,30 @@ function extractAirportCode(filename) {
 
 // Verify airport code using coordinates
 function verifyAirportCode(code, lat, lon) {
+  console.log(`\nVerifying airport code: ${code} at position ${lat}, ${lon}`);
+
   const nearest = findNearestAirport(lat, lon);
-  if (!nearest) return null;
+  if (!nearest) {
+    console.log('No nearby airport found');
+    return null;
+  }
+
+  // Debug logging
+  console.log('Nearest airport found:', {
+    code: nearest.code,
+    name: nearest.name,
+    type: nearest.type || 'unknown',
+    distance: nearest.distance.toFixed(2) + 'km'
+  });
 
   // If the filename's code matches one of the nearby airports, use it
   if (code && code === nearest.code) {
+    console.log(`Using suggested code: ${code} (matches nearest airport)`);
     return code;
   }
 
   // Otherwise use the nearest airport's code
+  console.log(`Using nearest airport code: ${nearest.code} (suggested code ${code || 'not provided'} didn't match)`);
   return nearest.code;
 }
 

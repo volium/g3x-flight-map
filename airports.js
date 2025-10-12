@@ -29,15 +29,28 @@ async function loadAirportsData() {
               airport.latitude_deg &&
               airport.longitude_deg &&
               airport.name &&
+              !airport.name.includes('(Duplicate)') &&  // Filter out duplicate entries
               !isNaN(airport.latitude_deg) &&
               !isNaN(airport.longitude_deg)) {
             airports[airport.ident] = {
               lat: parseFloat(airport.latitude_deg),
               lon: parseFloat(airport.longitude_deg),
-              name: airport.name
+              name: airport.name,
+              type: airport.type
             };
           }
         });
+
+        // Validate some key airports
+        const keyAirports = ['CYTZ', 'CPZ9'];
+        keyAirports.forEach(code => {
+          if (airports[code]) {
+            console.log(`Loaded airport ${code}:`, airports[code]);
+          } else {
+            console.warn(`Failed to load airport ${code}`);
+          }
+        });
+
         console.log(`Loaded ${Object.keys(airports).length} airports`);
       }
     });
