@@ -1,5 +1,9 @@
 // Initialize Leaflet map
-const map = L.map("map").setView([39, -98], 4);
+const map = L.map("map", {
+  zoomDelta: 0.25,  // Allow fractional zoom levels
+  zoomSnap: 0.25,   // Snap to 0.25 zoom level increments
+  wheelDebounceTime: 100  // Smooth out wheel zooming
+}).setView([39, -98], 4);
 
 // Layer groups for different zoom level markers
 const circleMarkersGroup = L.layerGroup();
