@@ -1,6 +1,9 @@
 // Initialize Leaflet map
 const map = L.map("map").setView([39, -98], 4);
 
+// Keep track of labeled airports to avoid duplicates
+const labeledAirports = new Set();
+
 // Esri World Imagery basemap (legal, free, beautiful)
 L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -77,6 +80,7 @@ document.getElementById("file-input").addEventListener("change", (event) => {
   const files = Array.from(event.target.files);
   files.sort((a, b) => a.name.localeCompare(b.name)); // chronological order
   lastFlight = null; // Reset on new file upload
+  labeledAirports.clear(); // Clear labeled airports for new upload
   files.forEach((file, index) => processFile(file, index === 0, index === files.length - 1));
 });
 
@@ -138,15 +142,18 @@ function processFile(file, isFirst, isLast) {
             .bindPopup(`<b>${departureAirport}</b><br>Departure ${file.name}`)
             .addTo(map);
 
-          // Add airport code label for departure
-          L.marker(start, {
-            icon: L.divIcon({
-              className: 'airport-label',
-              html: `<div style="color: ${color}; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px;">${departureAirport}</div>`,
-              iconSize: [40, 20],
-              iconAnchor: [20, 0]
-            })
-          }).addTo(map);
+          // Add airport code label for departure if not already labeled
+          if (!labeledAirports.has(departureAirport)) {
+            L.marker(start, {
+              icon: L.divIcon({
+                className: 'airport-label',
+                html: `<div style="color: ${color}; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px;">${departureAirport}</div>`,
+                iconSize: [40, 20],
+                iconAnchor: [20, 0]
+              })
+            }).addTo(map);
+            labeledAirports.add(departureAirport);
+          }
         }
 
         // Add arrival marker and label if we found an airport
@@ -160,15 +167,18 @@ function processFile(file, isFirst, isLast) {
             .bindPopup(`<b>${arrivalAirport}</b><br>Arrival`)
             .addTo(map);
 
-          // Add airport code label for arrival
-          L.marker(end, {
-            icon: L.divIcon({
-              className: 'airport-label',
-              html: `<div style="color: ${color}; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px;">${arrivalAirport}</div>`,
-              iconSize: [40, 20],
-              iconAnchor: [20, 30]
-            })
-          }).addTo(map);
+          // Add airport code label for arrival if not already labeled
+          if (!labeledAirports.has(arrivalAirport)) {
+            L.marker(end, {
+              icon: L.divIcon({
+                className: 'airport-label',
+                html: `<div style="color: ${color}; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px;">${arrivalAirport}</div>`,
+                iconSize: [40, 20],
+                iconAnchor: [20, 30]
+              })
+            }).addTo(map);
+            labeledAirports.add(arrivalAirport);
+          }
         }
 
         // Add polyline popup
