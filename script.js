@@ -78,7 +78,7 @@ function processFile(file) {
         const endMarker = L.circleMarker(end, {
           radius: 6,
           color: color,
-          fillColor: color,
+          fillColor: "white",
           fillOpacity: 0.9,
         })
           .bindPopup(`<b>${file.name}</b><br>End`)
