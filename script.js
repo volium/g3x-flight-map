@@ -2,7 +2,7 @@
 const map = L.map("map").setView([39, -98], 4);
 
 // Layer group for circle markers
-const circleMarkersGroup = L.layerGroup().addTo(map);
+const circleMarkersGroup = L.layerGroup();
 
 // Keep track of labeled airports
 const labeledAirports = new Map(); // Map of airport code to label and connector info
@@ -133,6 +133,11 @@ L.tileLayer(
     maxZoom: 18,
   }
 ).addTo(map);
+
+// Set initial visibility of circle markers based on zoom level
+if (map.getZoom() >= CIRCLE_MARKER_MIN_ZOOM) {
+    circleMarkersGroup.addTo(map);
+}
 
 const colors = [
   "#ff0000",
