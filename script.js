@@ -295,8 +295,13 @@ function processFile(file, isFirst, isLast) {
 
           // Add airport code label for departure if not already labeled
           if (!labeledAirports.has(departureAirport)) {
-            const details = createAirportLabel(departureAirport, start, color);
-            labeledAirports.set(departureAirport, details);
+            // Use airport coordinates from airports database for label placement
+            const airportData = airports[departureAirport];
+            if (airportData) {
+              const airportPos = [airportData.lat, airportData.lon];
+              const details = createAirportLabel(departureAirport, airportPos, color);
+              labeledAirports.set(departureAirport, details);
+            }
           }
         }
 
@@ -313,8 +318,13 @@ function processFile(file, isFirst, isLast) {
 
           // Add airport code label for arrival if not already labeled
           if (!labeledAirports.has(arrivalAirport)) {
-            const details = createAirportLabel(arrivalAirport, end, color);
-            labeledAirports.set(arrivalAirport, details);
+            // Use airport coordinates from airports database for label placement
+            const airportData = airports[arrivalAirport];
+            if (airportData) {
+              const airportPos = [airportData.lat, airportData.lon];
+              const details = createAirportLabel(arrivalAirport, airportPos, color);
+              labeledAirports.set(arrivalAirport, details);
+            }
           }
         }
 
