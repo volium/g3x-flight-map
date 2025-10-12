@@ -1,11 +1,13 @@
 // Initialize Leaflet map
 const map = L.map("map").setView([39, -98], 4);
 
-// Layer group for circle markers
+// Layer groups for different zoom level markers
 const circleMarkersGroup = L.layerGroup();
+const lowZoomMarkersGroup = L.layerGroup().addTo(map);
 
-// Keep track of labeled airports
+// Keep track of labeled airports and markers
 const labeledAirports = new Map(); // Map of airport code to label and connector info
+const airportMarkers = new Map(); // Map of airport code to low-zoom marker
 
 // Label management
 const BASE_MIN_LABEL_DISTANCE = 50; // Base minimum pixels between labels
@@ -15,13 +17,34 @@ const MIN_ZOOM = 4; // Minimum zoom level for reference
 const MAX_ZOOM = 12; // Maximum zoom level for reference
 const CIRCLE_MARKER_MIN_ZOOM = 13; // Minimum zoom level to show circle markers
 
-// Handle circle marker visibility based on zoom
+// Function to create or get a low zoom marker for an airport
+function createLowZoomMarker(airport, position, color) {
+    if (airportMarkers.has(airport)) {
+        return airportMarkers.get(airport);
+    }
+
+    const marker = L.marker(position, {
+        icon: L.divIcon({
+            className: 'airport-marker',
+            html: `<div style="width: 8px; height: 8px; background-color: white; border: 2px solid ${color}; border-radius: 50%;"></div>`,
+            iconSize: [12, 12],
+            iconAnchor: [6, 6]
+        })
+    }).bindPopup(`<b>${airport}</b>`);
+
+    airportMarkers.set(airport, marker);
+    return marker;
+}
+
+// Handle marker visibility based on zoom
 map.on('zoomend', () => {
     const zoom = map.getZoom();
     if (zoom >= CIRCLE_MARKER_MIN_ZOOM) {
         circleMarkersGroup.addTo(map);
+        lowZoomMarkersGroup.remove();
     } else {
         circleMarkersGroup.remove();
+        lowZoomMarkersGroup.addTo(map);
     }
 });
 
@@ -40,9 +63,47 @@ function adjustLabelPosition(airport, position, existingLabels) {
     const { labelDistance, labelMargin } = getZoomAdjustedValues(zoom);
     const point = map.latLngToContainerPoint(position);
 
-    // Start with default offset and spiral outward until no overlap
+    // Fixed minimum offset from marker (20 pixels)
+    const minOffset = 20;
+
+    // Define preferred positions to try (in order: up, down, left, right, then diagonals)
+    const positions = [
+        { angle: Math.PI / 2, radius: minOffset },      // above
+        { angle: -Math.PI / 2, radius: minOffset },     // below
+        { angle: Math.PI, radius: minOffset },          // left
+        { angle: 0, radius: minOffset },                // right
+        { angle: Math.PI / 4, radius: minOffset },      // top-right
+        { angle: -Math.PI / 4, radius: minOffset },     // bottom-right
+        { angle: 3 * Math.PI / 4, radius: minOffset },  // top-left
+        { angle: -3 * Math.PI / 4, radius: minOffset }  // bottom-left
+    ];
+
+    // Try each preferred position first
+    for (const pos of positions) {
+        const x = pos.radius * Math.cos(pos.angle);
+        const y = pos.radius * Math.sin(pos.angle);
+        const testPoint = point.add(L.point(x, y));
+        const newPos = map.containerPointToLatLng(testPoint);
+
+        // Check for overlaps
+        let hasOverlap = false;
+        for (const [code, details] of existingLabels) {
+            if (code === airport) continue;
+            const labelPoint = map.latLngToContainerPoint(details.labelPosition);
+            if (testPoint.distanceTo(labelPoint) < labelDistance) {
+                hasOverlap = true;
+                break;
+            }
+        }
+
+        if (!hasOverlap) {
+            return newPos;
+        }
+    }
+
+    // If preferred positions don't work, spiral outward from minimum offset
     let angle = 0;
-    let radius = labelMargin;
+    let radius = minOffset;
     const maxAttempts = 32; // Limit search iterations
 
     for (let i = 0; i < maxAttempts; i++) {
@@ -216,6 +277,10 @@ document.getElementById("file-input").addEventListener("change", (event) => {
   });
   labeledAirports.clear();
 
+  // Clear low zoom markers
+  airportMarkers.forEach(marker => marker.remove());
+  airportMarkers.clear();
+
   // Add handler for zoom changes to update label positions
   map.on('zoomend', () => {
     // Store existing airports and clear the map
@@ -320,6 +385,10 @@ function processFile(file, isFirst, isLast) {
               const airportPos = [airportData.lat, airportData.lon];
               const details = createAirportLabel(departureAirport, airportPos, color);
               labeledAirports.set(departureAirport, details);
+
+              // Add low-zoom marker
+              const lowZoomMarker = createLowZoomMarker(departureAirport, airportPos, color);
+              lowZoomMarker.addTo(lowZoomMarkersGroup);
             }
           }
         }
@@ -343,6 +412,10 @@ function processFile(file, isFirst, isLast) {
               const airportPos = [airportData.lat, airportData.lon];
               const details = createAirportLabel(arrivalAirport, airportPos, color);
               labeledAirports.set(arrivalAirport, details);
+
+              // Add low-zoom marker
+              const lowZoomMarker = createLowZoomMarker(arrivalAirport, airportPos, color);
+              lowZoomMarker.addTo(lowZoomMarkersGroup);
             }
           }
         }
