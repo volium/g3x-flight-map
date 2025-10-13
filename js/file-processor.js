@@ -133,23 +133,49 @@ function renderFlight(flightData, color) {
   }).addTo(map);
 
   // Add arrow decorations to show flight direction
-  L.polylineDecorator(polyline, {
+  // Zoom-adaptive: more arrows at low zoom (zoomed out), fewer at high zoom (zoomed in)
+  const currentZoom = map.getZoom();
+  const arrowSpacing = currentZoom < 7 ? 100 : currentZoom < 10 ? 200 : currentZoom < 13 ? 400 : 600;
+
+  const decorator = L.polylineDecorator(polyline, {
     patterns: [
       {
-        offset: 25, // Start 25% along the path
-        repeat: 50, // Repeat every 50 pixels
+        offset: '10%', // Start 10% along the path
+        repeat: arrowSpacing, // Spacing in pixels
         symbol: L.Symbol.arrowHead({
-          pixelSize: 12,
-          polygon: false,
+          pixelSize: 13,
+          polygon: false, // Line arrows (not filled)
           pathOptions: {
-            color: color,
-            fillOpacity: 1,
-            weight: 2
+            color: 'white',
+            weight: 2,
+            opacity: 0.9
           }
         })
       }
     ]
   }).addTo(map);
+
+  // Update arrows on zoom
+  map.on('zoomend', () => {
+    const zoom = map.getZoom();
+    const spacing = zoom < 7 ? 100 : zoom < 10 ? 200 : zoom < 13 ? 400 : 600;
+
+    decorator.setPatterns([
+      {
+        offset: '10%',
+        repeat: spacing,
+        symbol: L.Symbol.arrowHead({
+          pixelSize: 13,
+          polygon: false,
+          pathOptions: {
+            color: 'white',
+            weight: 2,
+            opacity: 0.9
+          }
+        })
+      }
+    ]);
+  });
 
   // Add departure airport marker and label
   if (departureAirport) {
