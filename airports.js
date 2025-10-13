@@ -41,16 +41,7 @@ async function loadAirportsData() {
           }
         });
 
-        // Validate some key airports
-        const keyAirports = ['CYTZ', 'CPZ9'];
-        keyAirports.forEach(code => {
-          if (airports[code]) {
-            console.log(`Loaded airport ${code}:`, airports[code]);
-          } else {
-            console.warn(`Failed to load airport ${code}`);
-          }
-        });
-
+        // Airport data loaded successfully
         console.log(`Loaded ${Object.keys(airports).length} airports`);
       }
     });
