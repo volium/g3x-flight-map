@@ -43,3 +43,43 @@ function getZoomAdjustedValues(zoom) {
     labelMargin: BASE_LABEL_MARGIN * (1 - zoomFactor * 0.7)
   };
 }
+
+/**
+ * Show loading message overlay
+ * @param {string} message - Message to display
+ */
+function showLoadingMessage(message) {
+  let overlay = document.getElementById('loading-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+    `;
+    document.body.appendChild(overlay);
+  }
+  overlay.textContent = message;
+  overlay.style.display = 'flex';
+}
+
+/**
+ * Hide loading message overlay
+ */
+function hideLoadingMessage() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+}

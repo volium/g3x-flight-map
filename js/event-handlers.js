@@ -54,6 +54,20 @@ function setupFileUploadHandler() {
     totalFilesToProcess = files.length;
     console.log(`Loading ${totalFilesToProcess} flight files...`);
 
+    // Load airports data if not already loaded
+    if (!airportsLoaded) {
+      console.log('Loading airport database...');
+      showLoadingMessage('Loading airport database...');
+      try {
+        await loadAirportsData();
+        hideLoadingMessage();
+      } catch (error) {
+        console.error('Failed to load airports:', error);
+        hideLoadingMessage();
+        alert('Failed to load airport database. Some features may not work correctly.');
+      }
+    }
+
     // Add handler for zoom changes to update label positions
     map.off('zoomend'); // Remove any existing handlers first
 
