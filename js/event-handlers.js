@@ -43,12 +43,16 @@ function setupIntermediateStopsToggle() {
  * Setup event handler for file uploads
  */
 function setupFileUploadHandler() {
-  document.getElementById("file-input").addEventListener("change", (event) => {
+  document.getElementById("file-input").addEventListener("change", async (event) => {
     const files = Array.from(event.target.files);
     files.sort((a, b) => a.name.localeCompare(b.name)); // chronological order
 
     // Reset the map
     resetMap();
+
+    // Set the total number of files to process
+    totalFilesToProcess = files.length;
+    console.log(`Loading ${totalFilesToProcess} flight files...`);
 
     // Add handler for zoom changes to update label positions
     map.off('zoomend'); // Remove any existing handlers first
@@ -88,10 +92,38 @@ function setupFileUploadHandler() {
       });
     });
 
-    // Process all files
-    files.forEach((file, index) =>
-      processFile(file, index === 0, index === files.length - 1)
-    );
+    // Parse all files first (in parallel)
+    console.log('Parsing all flight files...');
+    const parsePromises = files.map(file => parseFile(file));
+    const allFlightData = await Promise.all(parsePromises);
+
+    // Filter out any null results (empty files)
+    const validFlights = allFlightData.filter(data => data !== null);
+    console.log(`Successfully parsed ${validFlights.length} flights`);
+
+    // Render all flights at once
+    console.log('Rendering all flights to map...');
+    validFlights.forEach((flightData, index) => {
+      try {
+        const color = getNextFlightColor();
+        console.log(`Rendering flight ${index + 1}/${validFlights.length}: ${flightData.filename} with color ${color}`);
+        const polyline = renderFlight(flightData, color);
+        allFlightBounds.push(polyline.getBounds());
+        console.log(`Flight ${index + 1} rendered, total bounds: ${allFlightBounds.length}`);
+      } catch (error) {
+        console.error(`Error rendering flight ${flightData.filename}:`, error);
+      }
+    });
+
+    // Smoothly zoom to show all flights
+    if (allFlightBounds.length > 0) {
+      console.log(`Zooming to show all ${allFlightBounds.length} flights...`);
+      setTimeout(() => {
+        fitMapToAllFlights();
+      }, 100); // Small delay to ensure all elements are rendered
+    } else {
+      console.warn('No flight bounds to fit!');
+    }
   });
 }
 

@@ -28,6 +28,11 @@ let colorIndex = 0;
 // Last flight info
 let lastFlight = null;
 
+// Track all flight bounds for proper map fitting
+let allFlightBounds = [];
+let filesProcessed = 0;
+let totalFilesToProcess = 0;
+
 /**
  * Initialize the map with base tiles
  */
@@ -64,7 +69,7 @@ function resetMap() {
   lowZoomMarkersGroup.clearLayers();
   intermediateStopsCircleMarkersGroup.clearLayers();
   intermediateStopsLowZoomMarkersGroup.clearLayers();
-  
+
   // Clear tracking maps
   labeledAirports.clear();
   intermediateStopLabels.clear();
@@ -73,6 +78,9 @@ function resetMap() {
   // Reset state
   colorIndex = 0;
   lastFlight = null;
+  allFlightBounds = [];
+  filesProcessed = 0;
+  totalFilesToProcess = 0;
 
   // Re-add groups based on checkbox state
   circleMarkersGroup.addTo(map);
@@ -83,6 +91,26 @@ function resetMap() {
     intermediateStopsCircleMarkersGroup.addTo(map);
     intermediateStopsLowZoomMarkersGroup.addTo(map);
   }
+}
+
+/**
+ * Fit the map to show all processed flights
+ */
+function fitMapToAllFlights() {
+  if (allFlightBounds.length === 0) {
+    return;
+  }
+
+  // Combine all flight bounds into one
+  let combinedBounds = allFlightBounds[0];
+  for (let i = 1; i < allFlightBounds.length; i++) {
+    combinedBounds.extend(allFlightBounds[i]);
+  }
+
+  // Fit the map to show all flights
+  map.fitBounds(combinedBounds, { padding: [50, 50] });
+
+  console.log(`Map fitted to show all ${allFlightBounds.length} flights`);
 }
 
 /**
