@@ -83,3 +83,51 @@ function hideLoadingMessage() {
     overlay.style.display = 'none';
   }
 }
+
+/**
+ * Show progress indicator
+ * @param {number} current - Current file number
+ * @param {number} total - Total number of files
+ * @param {string} message - Status message
+ */
+function showProgress(current, total, message) {
+  const container = document.getElementById('progress-container');
+  const text = document.getElementById('progress-text');
+  const bar = document.getElementById('progress-bar');
+
+  if (!container || !text || !bar) return;
+
+  const percentage = Math.round((current / total) * 100);
+
+  container.style.display = 'block';
+  text.textContent = message || `Processing file ${current} of ${total}`;
+  bar.style.width = `${percentage}%`;
+
+  // Only show percentage if greater than 0
+  if (percentage > 0) {
+    bar.textContent = `${percentage}%`;
+  } else {
+    bar.textContent = '';
+  }
+}
+
+/**
+ * Hide progress indicator
+ */
+function hideProgress() {
+  const container = document.getElementById('progress-container');
+  if (container) {
+    container.style.display = 'none';
+  }
+}
+
+/**
+ * Update progress with custom message
+ * @param {string} message - Custom message to display
+ */
+function updateProgressMessage(message) {
+  const text = document.getElementById('progress-text');
+  if (text) {
+    text.textContent = message;
+  }
+}

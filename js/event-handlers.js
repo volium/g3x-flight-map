@@ -43,9 +43,17 @@ function setupIntermediateStopsToggle() {
  * Setup event handler for file uploads
  */
 function setupFileUploadHandler() {
-  document.getElementById("file-input").addEventListener("change", async (event) => {
+  const fileInput = document.getElementById("file-input");
+
+  fileInput.addEventListener("change", async (event) => {
     const files = Array.from(event.target.files);
+
+    if (files.length === 0) return;
+
     files.sort((a, b) => a.name.localeCompare(b.name)); // chronological order
+
+    // Disable file input during processing
+    fileInput.disabled = true;
 
     // Reset the map
     resetMap();
@@ -64,9 +72,14 @@ function setupFileUploadHandler() {
       } catch (error) {
         console.error('Failed to load airports:', error);
         hideLoadingMessage();
+        fileInput.disabled = false;
         alert('Failed to load airport database. Some features may not work correctly.');
+        return;
       }
     }
+
+    // Show initial progress with bar at 0%
+    showProgress(0, totalFilesToProcess, 'Processing files...');
 
     // Add handler for zoom changes to update label positions
     map.off('zoomend'); // Remove any existing handlers first
@@ -106,38 +119,62 @@ function setupFileUploadHandler() {
       });
     });
 
-    // Parse all files first (in parallel)
-    console.log('Parsing all flight files...');
-    const parsePromises = files.map(file => parseFile(file));
+    // Process files in parallel with progress tracking
+    console.log('Processing all flight files in parallel...');
+
+    let completedCount = 0;
+    const parsePromises = files.map(file =>
+      parseFile(file).then(flightData => {
+        completedCount++;
+        showProgress(completedCount, files.length, `Processed ${completedCount} of ${files.length} files`);
+        return flightData;
+      }).catch(error => {
+        console.error(`Error processing flight ${file.name}:`, error);
+        completedCount++;
+        showProgress(completedCount, files.length, `Processed ${completedCount} of ${files.length} files`);
+        return null;
+      })
+    );
+
+    // Wait for all files to parse
     const allFlightData = await Promise.all(parsePromises);
 
-    // Filter out any null results (empty files)
+    // Filter out any null results (empty files or errors)
     const validFlights = allFlightData.filter(data => data !== null);
     console.log(`Successfully parsed ${validFlights.length} flights`);
 
-    // Render all flights at once
-    console.log('Rendering all flights to map...');
+    // Update progress message
+    updateProgressMessage('Rendering flights to map...');
+
+    // Render all flights
     validFlights.forEach((flightData, index) => {
       try {
         const color = getNextFlightColor();
         console.log(`Rendering flight ${index + 1}/${validFlights.length}: ${flightData.filename} with color ${color}`);
         const polyline = renderFlight(flightData, color);
         allFlightBounds.push(polyline.getBounds());
-        console.log(`Flight ${index + 1} rendered, total bounds: ${allFlightBounds.length}`);
       } catch (error) {
         console.error(`Error rendering flight ${flightData.filename}:`, error);
       }
     });
 
+    // Update progress message
+    updateProgressMessage('Finalizing map view...');
+
     // Smoothly zoom to show all flights
     if (allFlightBounds.length > 0) {
       console.log(`Zooming to show all ${allFlightBounds.length} flights...`);
-      setTimeout(() => {
-        fitMapToAllFlights();
-      }, 100); // Small delay to ensure all elements are rendered
+      fitMapToAllFlights();
     } else {
       console.warn('No flight bounds to fit!');
     }
+
+    // Hide progress after a short delay
+    setTimeout(() => {
+      hideProgress();
+      fileInput.disabled = false;
+      fileInput.value = ''; // Clear the input so the same files can be re-uploaded
+    }, 500);
   });
 }
 
