@@ -37,10 +37,14 @@ const AIRPORT_TYPE_PRIORITY = {
 };
 
 // Function to create or get a low zoom marker for an airport
-function createLowZoomMarker(airport, position, color) {
-    if (airportMarkers.has(airport)) {
-        return airportMarkers.get(airport);
+function createLowZoomMarker(airport, position, color, label = null) {
+    const markerKey = label ? `${airport}_${label}` : airport;
+
+    if (airportMarkers.has(markerKey)) {
+        return airportMarkers.get(markerKey);
     }
+
+    const popupText = label ? `<b>${airport}</b><br>${label}` : `<b>${airport}</b>`;
 
     const marker = L.marker(position, {
         icon: L.divIcon({
@@ -49,9 +53,9 @@ function createLowZoomMarker(airport, position, color) {
             iconSize: [12, 12],
             iconAnchor: [6, 6]
         })
-    }).bindPopup(`<b>${airport}</b>`);
+    }).bindPopup(popupText);
 
-    airportMarkers.set(airport, marker);
+    airportMarkers.set(markerKey, marker);
     return marker;
 }
 
@@ -704,7 +708,7 @@ function processFile(file, isFirst, isLast) {
             fillColor: "white",
             fillOpacity: 1,
           })
-            .bindPopup(`<b>${departureAirport}</b><br>Departure ${file.name}`)
+            .bindPopup(`<b>${departureAirport}</b><br>Departure`)
             .addTo(circleMarkersGroup);
 
           // Add airport code label for departure if not already labeled
@@ -771,8 +775,8 @@ function processFile(file, isFirst, isLast) {
             const details = createAirportLabel(stop.airport, airportPos, color, null, showIntermediateStops);
             intermediateStopLabels.set(stop.airport, details);
 
-            // Add low-zoom marker
-            const lowZoomMarker = createLowZoomMarker(stop.airport, airportPos, color);
+            // Add low-zoom marker with "Intermediate stop" label
+            const lowZoomMarker = createLowZoomMarker(stop.airport, airportPos, color, "Intermediate stop");
             lowZoomMarker.addTo(intermediateStopsLowZoomMarkersGroup);
           }
         });
