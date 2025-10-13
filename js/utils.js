@@ -131,3 +131,73 @@ function updateProgressMessage(message) {
     text.textContent = message;
   }
 }
+
+/**
+ * Calculate perpendicular distance from a point to a line segment
+ * @param {Array} point - [lat, lon] point
+ * @param {Array} lineStart - [lat, lon] line start point
+ * @param {Array} lineEnd - [lat, lon] line end point
+ * @returns {number} Distance in kilometers
+ */
+function perpendicularDistance(point, lineStart, lineEnd) {
+  const [px, py] = point;
+  const [x1, y1] = lineStart;
+  const [x2, y2] = lineEnd;
+
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+
+  // If the line segment is actually a point
+  if (dx === 0 && dy === 0) {
+    return getDistance(px, py, x1, y1);
+  }
+
+  // Calculate the parameter t that represents the projection of point onto the line
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+
+  // Find the closest point on the line segment
+  const closestX = x1 + t * dx;
+  const closestY = y1 + t * dy;
+
+  // Return distance from point to closest point on line
+  return getDistance(px, py, closestX, closestY);
+}
+
+/**
+ * Ramer-Douglas-Peucker algorithm for polyline simplification
+ * Reduces the number of points in a polyline while maintaining visual accuracy
+ * @param {Array} points - Array of [lat, lon] coordinate pairs
+ * @param {number} epsilon - Tolerance in kilometers (smaller = more detail)
+ * @returns {Array} Simplified array of [lat, lon] coordinate pairs
+ */
+function simplifyPolyline(points, epsilon) {
+  if (points.length <= 2) {
+    return points;
+  }
+
+  // Find the point with the maximum distance from the line segment
+  let maxDistance = 0;
+  let maxIndex = 0;
+  const end = points.length - 1;
+
+  for (let i = 1; i < end; i++) {
+    const distance = perpendicularDistance(points[i], points[0], points[end]);
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      maxIndex = i;
+    }
+  }
+
+  // If max distance is greater than epsilon, recursively simplify
+  if (maxDistance > epsilon) {
+    // Recursive call on both segments
+    const leftSegment = simplifyPolyline(points.slice(0, maxIndex + 1), epsilon);
+    const rightSegment = simplifyPolyline(points.slice(maxIndex), epsilon);
+
+    // Combine results, removing duplicate middle point
+    return leftSegment.slice(0, -1).concat(rightSegment);
+  } else {
+    // Max distance is less than epsilon, so we can approximate with just the endpoints
+    return [points[0], points[end]];
+  }
+}

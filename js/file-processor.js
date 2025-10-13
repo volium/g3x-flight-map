@@ -47,7 +47,7 @@ function parseFile(file) {
           }
 
           // Use correct keys and ensure numeric values
-          const latlngs = data.map((row) => {
+          const rawLatLngs = data.map((row) => {
             const lat = row.Latitude || row.latitude;
             const lon = row.Longitude || row.longitude;
             return [
@@ -55,6 +55,13 @@ function parseFile(file) {
               typeof lon === 'number' ? lon : parseFloat(lon)
             ];
           });
+
+          // Simplify the polyline for better performance
+          // epsilon = 0.0005 km (~0.5 meters) - maintains visual accuracy while reducing points
+          const epsilon = 0.0005;
+          const latlngs = simplifyPolyline(rawLatLngs, epsilon);
+
+          console.log(`Simplified ${file.name}: ${rawLatLngs.length} points → ${latlngs.length} points (${Math.round((1 - latlngs.length/rawLatLngs.length) * 100)}% reduction)`);
 
           const start = latlngs[0];
           const end = latlngs[latlngs.length - 1];
