@@ -13,7 +13,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/leaflet-polylinedecorator/dist/leaflet.polylineDecorator.js"></script>
-  <script src="airports.js"></script>
 </head>
 <body>
   <h1>G3X Flight Map Generator ✈️</h1>
@@ -41,16 +40,19 @@
   </div>
   <div id="map"></div>
 
-  <!-- Application modules - order matters! -->
-  <script src="js/constants.js"></script>
-  <script src="js/utils.js"></script>
-  <script src="js/map-init.js"></script>
-  <script src="js/airport-finder.js"></script>
-  <script src="js/intermediate-stops.js"></script>
-  <script src="js/labels.js"></script>
-  <script src="js/markers.js"></script>
-  <script src="js/file-processor.js"></script>
-  <script src="js/event-handlers.js"></script>
-  <script src="js/main.js"></script>
+  <!-- Airport database - loaded asynchronously, doesn't block page render -->
+  <script src="airports.js" defer></script>
+
+  <!-- Application modules - loaded in parallel but executed in order -->
+  <script src="js/constants.js" defer></script>
+  <script src="js/utils.js" defer></script>
+  <script src="js/map-init.js" defer></script>
+  <script src="js/airport-finder.js" defer></script>
+  <script src="js/intermediate-stops.js" defer></script>
+  <script src="js/labels.js" defer></script>
+  <script src="js/markers.js" defer></script>
+  <script src="js/file-processor.js" defer></script>
+  <script src="js/event-handlers.js" defer></script>
+  <script src="js/main.js" defer></script>
 </body>
 </html>
