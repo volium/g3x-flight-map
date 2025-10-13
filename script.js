@@ -9,8 +9,13 @@ const map = L.map("map", {
 const circleMarkersGroup = L.layerGroup();
 const lowZoomMarkersGroup = L.layerGroup().addTo(map);
 
+// Layer groups for intermediate stops (separate so they can be toggled)
+const intermediateStopsCircleMarkersGroup = L.layerGroup();
+const intermediateStopsLowZoomMarkersGroup = L.layerGroup().addTo(map);
+
 // Keep track of labeled airports and markers
-const labeledAirports = new Map(); // Map of airport code to label and connector info
+const labeledAirports = new Map(); // Map of airport code to label and connector info (departure/arrival only)
+const intermediateStopLabels = new Map(); // Map of airport code to label and connector info (intermediate stops only)
 const airportMarkers = new Map(); // Map of airport code to low-zoom marker
 
 // Label management
@@ -20,6 +25,16 @@ const MAX_PIXEL_DISTANCE = 100; // Maximum pixels away from airport
 const MIN_ZOOM = 4; // Minimum zoom level for reference
 const MAX_ZOOM = 12; // Maximum zoom level for reference
 const CIRCLE_MARKER_MIN_ZOOM = 13; // Minimum zoom level to show circle markers
+
+// Airport type priority (higher = better)
+const AIRPORT_TYPE_PRIORITY = {
+  'closed': -1,
+  'heliport': 0,
+  'seaplane_base': 1,
+  'small_airport': 2,
+  'medium_airport': 3,
+  'large_airport': 3
+};
 
 // Function to create or get a low zoom marker for an airport
 function createLowZoomMarker(airport, position, color) {
@@ -43,12 +58,24 @@ function createLowZoomMarker(airport, position, color) {
 // Handle marker visibility based on zoom
 map.on('zoomend', () => {
     const zoom = map.getZoom();
+    const showIntermediateStops = document.getElementById('show-intermediate-stops').checked;
+
     if (zoom >= CIRCLE_MARKER_MIN_ZOOM) {
         circleMarkersGroup.addTo(map);
         lowZoomMarkersGroup.remove();
+
+        if (showIntermediateStops) {
+            intermediateStopsCircleMarkersGroup.addTo(map);
+            intermediateStopsLowZoomMarkersGroup.remove();
+        }
     } else {
         circleMarkersGroup.remove();
         lowZoomMarkersGroup.addTo(map);
+
+        if (showIntermediateStops) {
+            intermediateStopsCircleMarkersGroup.remove();
+            intermediateStopsLowZoomMarkersGroup.addTo(map);
+        }
     }
 });
 
@@ -156,8 +183,10 @@ function adjustLabelPosition(airport, position, existingLabels) {
 }
 
 // Create airport label with connector line if needed
-function createAirportLabel(airport, position, color) {
-    const adjustedPosition = adjustLabelPosition(airport, position, labeledAirports);
+function createAirportLabel(airport, position, color, existingLabels = null, addToMap = true) {
+    // If no existingLabels provided, combine both maps
+    const labelsToCheck = existingLabels || new Map([...labeledAirports, ...intermediateStopLabels]);
+    const adjustedPosition = adjustLabelPosition(airport, position, labelsToCheck);
 
     // Create label
     const label = L.marker(adjustedPosition, {
@@ -167,7 +196,11 @@ function createAirportLabel(airport, position, color) {
             iconSize: [40, 20],
             iconAnchor: [20, 10]
         })
-    }).addTo(map);
+    });
+
+    if (addToMap) {
+        label.addTo(map);
+    }
 
     // Create connector line if label was moved
     let connector = null;
@@ -177,7 +210,11 @@ function createAirportLabel(airport, position, color) {
             weight: 1,
             opacity: 0.5,
             dashArray: '3,3'
-        }).addTo(map);
+        });
+
+        if (addToMap) {
+            connector.addTo(map);
+        }
     }
 
     return {
@@ -233,15 +270,6 @@ function findNearestAirport(lat, lon) {
   let closest = null;
   let minDistance = Infinity;
 
-  // Airport type priority (higher = better)
-  const typePriority = {
-    'closed': -1,
-    'heliport': 0,
-    'seaplane_base': 1,
-    'small_airport': 2,
-    'medium_airport': 3,
-    'large_airport': 3  // Make equal to medium_airport to not override closer airports
-  };
 
   console.log(`Searching for airports near lat: ${lat}, lon: ${lon}`);
 
@@ -254,8 +282,8 @@ function findNearestAirport(lat, lon) {
   for (const [code, airport] of Object.entries(airports)) {
     const distance = getDistance(lat, lon, airport.lat, airport.lon);
 
-    const currentPriority = typePriority[airport.type] || 0;
-    const closestPriority = closest ? typePriority[closest.type] || 0 : -1;
+    const currentPriority = AIRPORT_TYPE_PRIORITY[airport.type] || 0;
+    const closestPriority = closest ? AIRPORT_TYPE_PRIORITY[closest.type] || 0 : -1;
 
     // Keep track of all airports within 50km for debugging
     if (distance <= 50) {
@@ -263,7 +291,7 @@ function findNearestAirport(lat, lon) {
         code,
         ...airport,
         distance,
-        priority: typePriority[airport.type] || 0
+        priority: AIRPORT_TYPE_PRIORITY[airport.type] || 0
       });
     }
 
@@ -273,14 +301,14 @@ function findNearestAirport(lat, lon) {
         code,
         ...airport,
         distance,
-        priority: typePriority[airport.type] || 0
+        priority: AIRPORT_TYPE_PRIORITY[airport.type] || 0
       });
     }
 
     // If we don't have any close airports (<1km), use normal distance and priority logic
     if (closeAirports.length === 0) {
-      const currentPriority = typePriority[airport.type] || 0;
-      const closestPriority = closest ? typePriority[closest.type] || 0 : -1;
+      const currentPriority = AIRPORT_TYPE_PRIORITY[airport.type] || 0;
+      const closestPriority = closest ? AIRPORT_TYPE_PRIORITY[closest.type] || 0 : -1;
 
       // Update closest if:
       // 1. No airport found yet, or
@@ -336,6 +364,119 @@ function findNearestAirport(lat, lon) {
   return closest;
 }
 
+// Detect intermediate stops in flight data
+function detectIntermediateStops(data, aglThreshold, speedThreshold) {
+  const intermediateStops = [];
+  const visitedAirports = new Set();
+
+  let inLowSlowZone = false;
+  let lowSlowStartIdx = -1;
+
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i];
+    const agl = row.AGL !== undefined ? row.AGL : Infinity;
+    const groundSpeed = row.GndSpd !== undefined ? row.GndSpd : Infinity;
+    const lat = row.Latitude || row.latitude;
+    const lon = row.Longitude || row.longitude;
+
+    // Check if aircraft meets criteria (low AND/OR slow)
+    const isLowAndSlow = (agl <= aglThreshold) || (groundSpeed <= speedThreshold);
+
+    if (isLowAndSlow && !inLowSlowZone) {
+      // Entering low/slow zone
+      inLowSlowZone = true;
+      lowSlowStartIdx = i;
+    } else if (!isLowAndSlow && inLowSlowZone) {
+      // Exiting low/slow zone - this was a potential landing
+      inLowSlowZone = false;
+
+      // Find midpoint of the low/slow zone
+      const midIdx = Math.floor((lowSlowStartIdx + i) / 2);
+      const midRow = data[midIdx];
+      const midLat = midRow.Latitude || midRow.latitude;
+      const midLon = midRow.Longitude || midRow.longitude;
+
+      // Find nearest airport
+      const nearest = findNearestAirport(midLat, midLon);
+
+      if (nearest && !visitedAirports.has(nearest.code)) {
+        // Check if this airport is too close to an already-detected stop
+        // If so, keep only the higher priority one
+        let shouldAdd = true;
+        let replaceIdx = -1;
+
+        for (let j = 0; j < intermediateStops.length; j++) {
+          const existingStop = intermediateStops[j];
+          const distanceBetweenAirports = getDistance(
+            nearest.lat, nearest.lon,
+            existingStop.airportLat, existingStop.airportLon
+          );
+
+          // If airports are within 5km of each other, consider them the same landing
+          if (distanceBetweenAirports < 2) {
+            const existingAirportData = airports[existingStop.airport];
+            const existingPriority = AIRPORT_TYPE_PRIORITY[existingAirportData?.type] || 0;
+            const newPriority = AIRPORT_TYPE_PRIORITY[nearest.type] || 0;
+
+            console.log(`Found nearby airports: ${existingStop.airport} and ${nearest.code} (${distanceBetweenAirports.toFixed(2)}km apart)`);
+
+            // Keep the one with higher priority, or if same priority, keep the closer one to midpoint
+            if (newPriority > existingPriority) {
+              console.log(`Replacing ${existingStop.airport} with ${nearest.code} (higher priority: ${newPriority} > ${existingPriority})`);
+              replaceIdx = j;
+              shouldAdd = false;
+              break;
+            } else if (newPriority === existingPriority) {
+              const existingDistance = getDistance(midLat, midLon, existingStop.airportLat, existingStop.airportLon);
+              const newDistance = getDistance(midLat, midLon, nearest.lat, nearest.lon);
+
+              if (newDistance < existingDistance) {
+                console.log(`Replacing ${existingStop.airport} with ${nearest.code} (closer to landing point: ${newDistance.toFixed(2)}km < ${existingDistance.toFixed(2)}km)`);
+                replaceIdx = j;
+                shouldAdd = false;
+                break;
+              } else {
+                console.log(`Keeping ${existingStop.airport} over ${nearest.code} (already have closer airport)`);
+                shouldAdd = false;
+                break;
+              }
+            } else {
+              console.log(`Keeping ${existingStop.airport} over ${nearest.code} (higher priority: ${existingPriority} > ${newPriority})`);
+              shouldAdd = false;
+              break;
+            }
+          }
+        }
+
+        if (replaceIdx >= 0) {
+          // Replace the existing stop with the new one
+          const oldCode = intermediateStops[replaceIdx].airport;
+          visitedAirports.delete(oldCode);
+          intermediateStops[replaceIdx] = {
+            airport: nearest.code,
+            lat: midLat,
+            lon: midLon,
+            airportLat: nearest.lat,
+            airportLon: nearest.lon
+          };
+          visitedAirports.add(nearest.code);
+        } else if (shouldAdd) {
+          intermediateStops.push({
+            airport: nearest.code,
+            lat: midLat,
+            lon: midLon,
+            airportLat: nearest.lat,
+            airportLon: nearest.lon
+          });
+          visitedAirports.add(nearest.code);
+        }
+      }
+    }
+  }
+
+  return intermediateStops;
+}
+
 // Extract airport code from filename (expected format: log_YYYYMMDD_HHMMSS_ICAO.csv)
 function extractAirportCode(filename) {
   const match = filename.match(/log_\d{8}_\d{6}_([A-Z0-9]{3,4})\.csv$/);
@@ -371,6 +512,39 @@ function verifyAirportCode(code, lat, lon) {
   return nearest.code;
 }
 
+// Handle intermediate stops checkbox toggle
+document.getElementById("show-intermediate-stops").addEventListener("change", (event) => {
+  const showIntermediateStops = event.target.checked;
+
+  if (showIntermediateStops) {
+    // Show intermediate stops markers
+    const zoom = map.getZoom();
+    if (zoom >= CIRCLE_MARKER_MIN_ZOOM) {
+      intermediateStopsCircleMarkersGroup.addTo(map);
+      intermediateStopsLowZoomMarkersGroup.remove();
+    } else {
+      intermediateStopsLowZoomMarkersGroup.addTo(map);
+      intermediateStopsCircleMarkersGroup.remove();
+    }
+
+    // Show intermediate stop labels
+    intermediateStopLabels.forEach((details) => {
+      if (details.label) details.label.addTo(map);
+      if (details.connector) details.connector.addTo(map);
+    });
+  } else {
+    // Hide intermediate stops markers
+    intermediateStopsCircleMarkersGroup.remove();
+    intermediateStopsLowZoomMarkersGroup.remove();
+
+    // Hide intermediate stop labels
+    intermediateStopLabels.forEach((details) => {
+      if (details.label) details.label.remove();
+      if (details.connector) details.connector.remove();
+    });
+  }
+});
+
 // Handle file uploads
 document.getElementById("file-input").addEventListener("change", (event) => {
   const files = Array.from(event.target.files);
@@ -385,20 +559,29 @@ document.getElementById("file-input").addEventListener("change", (event) => {
 
   circleMarkersGroup.clearLayers();
   lowZoomMarkersGroup.clearLayers();
+  intermediateStopsCircleMarkersGroup.clearLayers();
+  intermediateStopsLowZoomMarkersGroup.clearLayers();
   labeledAirports.clear();
+  intermediateStopLabels.clear();
   airportMarkers.clear();
 
   colorIndex = 0;
   lastFlight = null;
 
-  // Re-add groups
+  // Re-add groups based on checkbox state
   circleMarkersGroup.addTo(map);
   lowZoomMarkersGroup.addTo(map);
+
+  const showIntermediateStops = document.getElementById('show-intermediate-stops').checked;
+  if (showIntermediateStops) {
+    intermediateStopsCircleMarkersGroup.addTo(map);
+    intermediateStopsLowZoomMarkersGroup.addTo(map);
+  }
   // --- END RESET ---
 
   // Add handler for zoom changes to update label positions
   map.on('zoomend', () => {
-    // Store existing airports and clear the map
+    // Store existing airports (departure/arrival) and clear the map
     const existingAirports = Array.from(labeledAirports.entries());
     labeledAirports.forEach((details) => {
       if (details.label) details.label.remove();
@@ -406,10 +589,25 @@ document.getElementById("file-input").addEventListener("change", (event) => {
     });
     labeledAirports.clear();
 
-    // Recreate labels with new positions
+    // Store existing intermediate stops and clear the map
+    const existingIntermediateStops = Array.from(intermediateStopLabels.entries());
+    intermediateStopLabels.forEach((details) => {
+      if (details.label) details.label.remove();
+      if (details.connector) details.connector.remove();
+    });
+    intermediateStopLabels.clear();
+
+    // Recreate departure/arrival labels with new positions
     existingAirports.forEach(([code, details]) => {
       const newDetails = createAirportLabel(code, details.position, details.color);
       labeledAirports.set(code, newDetails);
+    });
+
+    // Recreate intermediate stop labels with new positions
+    const showIntermediateStops = document.getElementById('show-intermediate-stops').checked;
+    existingIntermediateStops.forEach(([code, details]) => {
+      const newDetails = createAirportLabel(code, details.position, details.color, null, showIntermediateStops);
+      intermediateStopLabels.set(code, newDetails);
     });
   });
 
@@ -457,6 +655,20 @@ function processFile(file, isFirst, isLast) {
 
         // Find arrival airport code
         const arrivalAirport = findNearestAirport(end[0], end[1])?.code;
+
+        // Get threshold values from UI
+        const aglThreshold = parseFloat(document.getElementById('agl-threshold').value) || 20;
+        const speedThreshold = parseFloat(document.getElementById('speed-threshold').value) || 20;
+
+        // Detect intermediate stops
+        const intermediateStops = detectIntermediateStops(data, aglThreshold, speedThreshold);
+
+        // Filter out departure and arrival airports from intermediate stops
+        const filteredIntermediateStops = intermediateStops.filter(stop =>
+          stop.airport !== departureAirport && stop.airport !== arrivalAirport
+        );
+
+        console.log(`Flight ${file.name}: Found ${filteredIntermediateStops.length} intermediate stops`);
 
         // Draw flight path
         const polyline = L.polyline(latlngs, {
@@ -537,6 +749,33 @@ function processFile(file, isFirst, isLast) {
             }
           }
         }
+
+        // Add intermediate stop markers
+        const showIntermediateStops = document.getElementById('show-intermediate-stops').checked;
+
+        filteredIntermediateStops.forEach(stop => {
+          // Add circle marker for intermediate stop
+          const stopMarker = L.circleMarker([stop.lat, stop.lon], {
+            radius: 5,
+            color: color,
+            fillColor: "yellow",
+            fillOpacity: 0.8,
+          })
+            .bindPopup(`<b>${stop.airport}</b><br>Intermediate stop`)
+            .addTo(intermediateStopsCircleMarkersGroup);
+
+          // Add airport code label if not already labeled (check both maps)
+          if (!labeledAirports.has(stop.airport) && !intermediateStopLabels.has(stop.airport)) {
+            const airportPos = [stop.airportLat, stop.airportLon];
+            // Only add to map if checkbox is checked
+            const details = createAirportLabel(stop.airport, airportPos, color, null, showIntermediateStops);
+            intermediateStopLabels.set(stop.airport, details);
+
+            // Add low-zoom marker
+            const lowZoomMarker = createLowZoomMarker(stop.airport, airportPos, color);
+            lowZoomMarker.addTo(intermediateStopsLowZoomMarkersGroup);
+          }
+        });
 
         // Add polyline popup
         polyline.bindPopup(`<b>${file.name}</b>`);

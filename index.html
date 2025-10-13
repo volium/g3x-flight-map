@@ -19,7 +19,26 @@
   <h1>G3X Flight Map Generator ✈️</h1>
   <p>Upload your Garmin G3X CSV flight logs to visualize your summer route.</p>
 
-  <input type="file" id="file-input" multiple accept=".csv" />
+  <div class="controls">
+    <input type="file" id="file-input" multiple accept=".csv" />
+
+    <div class="threshold-controls">
+      <label class="threshold-label">
+        Max AGL (ft):
+        <input type="number" id="agl-threshold" value="20" min="0" max="500" step="5" />
+      </label>
+
+      <label class="threshold-label">
+        Max Speed (kt):
+        <input type="number" id="speed-threshold" value="20" min="0" max="100" step="5" />
+      </label>
+    </div>
+
+    <label class="checkbox-label">
+      <input type="checkbox" id="show-intermediate-stops" checked />
+      Show intermediate stops
+    </label>
+  </div>
   <div id="map"></div>
 
   <script src="script.js"></script>
