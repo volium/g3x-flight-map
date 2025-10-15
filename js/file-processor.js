@@ -120,35 +120,63 @@ function parseFile(file) {
  * Render a flight to the map
  * @param {Object} flightData - Processed flight data
  * @param {string} color - Color for this flight
+ * @param {number} cumulativePointsBefore - For global gradient mode
+ * @param {number} totalPointsAllFlights - For global gradient mode
  * @returns {L.Polyline} The polyline representing the flight path
  */
-function renderFlight(flightData, color) {
+function renderFlight(flightData, color, cumulativePointsBefore = 0, totalPointsAllFlights = 0) {
   const { filename, latlngs, start, end, departureAirport, arrivalAirport, intermediateStops } = flightData;
 
-  // Draw flight path
-  const polyline = L.polyline(latlngs, {
-    color: color,
-    weight: 3,
-    opacity: 0.9,
-  }).addTo(map);
+  // Get color mode setting
+  const colorMode = document.getElementById('color-mode').value;
 
-  // Add arrow decorations to show flight direction
-  // Zoom-adaptive: more arrows at low zoom (zoomed out), fewer at high zoom (zoomed in)
+  // Determine actual color(s) based on mode
+  let trackColor = color;
+  if (colorMode === COLOR_MODES.SINGLE) {
+    trackColor = SINGLE_FLIGHT_COLOR;
+  }
+
+  // Draw flight path with modern styling (zoom-adaptive width)
   const currentZoom = map.getZoom();
-  const arrowSpacing = currentZoom < 7 ? 100 : currentZoom < 10 ? 200 : currentZoom < 13 ? 400 : 600;
+  const trackWidth = getZoomAdaptiveTrackWidth(currentZoom);
+
+  const polylineOptions = {
+    color: trackColor,
+    weight: trackWidth,
+    opacity: TRACK_STYLE.opacity,
+    smoothFactor: TRACK_STYLE.smoothFactor,
+    lineCap: TRACK_STYLE.lineCap,
+    lineJoin: TRACK_STYLE.lineJoin
+  };
+
+  const polyline = L.polyline(latlngs, polylineOptions).addTo(map);
+
+  // Apply gradient if selected and store gradient segments
+  if (colorMode === COLOR_MODES.GRADIENT) {
+    const segments = applyGradientToPolyline(polyline, latlngs);
+    gradientSegments.push(...segments); // Store all gradient segments
+  } else if (colorMode === COLOR_MODES.GRADIENT_GLOBAL) {
+    const segments = applyGlobalGradientToPolyline(polyline, latlngs, cumulativePointsBefore, totalPointsAllFlights);
+    gradientSegments.push(...segments); // Store all gradient segments
+  }
+
+  // Add arrow decorations with improved visibility
+  // Zoom-adaptive: spacing, size, and outline all adjust with zoom level
+  const arrowConfig = getZoomAdaptiveArrowConfig(currentZoom);
 
   const decorator = L.polylineDecorator(polyline, {
     patterns: [
       {
-        offset: '10%', // Start 10% along the path
-        repeat: arrowSpacing, // Spacing in pixels
+        offset: '10%',
+        repeat: arrowConfig.spacing,
         symbol: L.Symbol.arrowHead({
-          pixelSize: 13,
-          polygon: false, // Line arrows (not filled)
+          pixelSize: arrowConfig.size,
+          polygon: true,
           pathOptions: {
-            color: 'white',
-            weight: 2,
-            opacity: 0.9
+            fillColor: ARROW_STYLE.fillColor,
+            fillOpacity: ARROW_STYLE.fillOpacity,
+            color: ARROW_STYLE.color,
+            weight: arrowConfig.weight
           }
         })
       }
@@ -158,19 +186,20 @@ function renderFlight(flightData, color) {
   // Update arrows on zoom
   map.on('zoomend', () => {
     const zoom = map.getZoom();
-    const spacing = zoom < 7 ? 100 : zoom < 10 ? 200 : zoom < 13 ? 400 : 600;
+    const config = getZoomAdaptiveArrowConfig(zoom);
 
     decorator.setPatterns([
       {
         offset: '10%',
-        repeat: spacing,
+        repeat: config.spacing,
         symbol: L.Symbol.arrowHead({
-          pixelSize: 13,
-          polygon: false,
+          pixelSize: config.size,
+          polygon: true,
           pathOptions: {
-            color: 'white',
-            weight: 2,
-            opacity: 0.9
+            fillColor: ARROW_STYLE.fillColor,
+            fillOpacity: ARROW_STYLE.fillOpacity,
+            color: ARROW_STYLE.color,
+            weight: config.weight
           }
         })
       }
@@ -258,14 +287,85 @@ function renderFlight(flightData, color) {
     }
   });
 
-  // Add polyline popup
-  polyline.bindPopup(`<b>${filename}</b>`);
+    // Add polyline popup
+    polyline.bindPopup(`<b>${filename}</b>`);
 
-  // Update last flight info
-  lastFlight = {
-    airport: arrivalAirport,
-    end: end
-  };
+    // Store polyline and decorator for potential re-rendering
+    flightPolylines.push(polyline);
+    flightDecorators.push(decorator);
 
-  return polyline;
+    // Update last flight info
+    lastFlight = {
+      airport: arrivalAirport,
+      end: end
+    };
+
+    return polyline;
+}
+
+/**
+ * Re-render all flights with current color mode (without reloading files)
+ */
+function reRenderAllFlights() {
+  console.log('Re-rendering all flights with new color mode...');
+
+  // Remove all existing polylines and decorators
+  flightPolylines.forEach(polyline => {
+    if (map.hasLayer(polyline)) {
+      map.removeLayer(polyline);
+    }
+  });
+  flightDecorators.forEach(decorator => {
+    if (map.hasLayer(decorator)) {
+      map.removeLayer(decorator);
+    }
+  });
+
+  // Remove all gradient segments
+  gradientSegments.forEach(segment => {
+    if (map.hasLayer(segment)) {
+      map.removeLayer(segment);
+    }
+  });
+
+  // Clear the arrays
+  flightPolylines = [];
+  flightDecorators = [];
+  gradientSegments = [];
+
+  // Clear flight bounds (will be recalculated)
+  allFlightBounds = [];
+
+  // Reset color index
+  colorIndex = 0;
+
+  // Check if we need to calculate global gradient info
+  const colorMode = document.getElementById('color-mode').value;
+  let totalPointsAllFlights = 0;
+  let cumulativePoints = [];
+
+  if (colorMode === COLOR_MODES.GRADIENT_GLOBAL) {
+    // Calculate cumulative point counts for global gradient
+    loadedFlights.forEach((flightData) => {
+      cumulativePoints.push(totalPointsAllFlights);
+      totalPointsAllFlights += flightData.latlngs.length;
+    });
+  }
+
+  // Re-render each flight
+  loadedFlights.forEach((flightData, index) => {
+    const color = getNextFlightColor();
+    console.log(`Re-rendering flight ${index + 1}/${loadedFlights.length}: ${flightData.filename} with color ${color}`);
+
+    const polyline = renderFlight(
+      flightData,
+      color,
+      colorMode === COLOR_MODES.GRADIENT_GLOBAL ? cumulativePoints[index] : 0,
+      colorMode === COLOR_MODES.GRADIENT_GLOBAL ? totalPointsAllFlights : 0
+    );
+
+    allFlightBounds.push(polyline.getBounds());
+  });
+
+  console.log(`Re-rendered ${loadedFlights.length} flights successfully`);
 }

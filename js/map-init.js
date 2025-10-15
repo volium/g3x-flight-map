@@ -33,6 +33,14 @@ let allFlightBounds = [];
 let filesProcessed = 0;
 let totalFilesToProcess = 0;
 
+// Store loaded flight data for re-rendering with different colors
+let loadedFlights = [];
+
+// Store all polylines and decorators for removal during re-render
+let flightPolylines = [];
+let flightDecorators = [];
+let gradientSegments = []; // Store gradient polyline segments separately
+
 /**
  * Initialize the map with base tiles and layer control
  */
@@ -250,6 +258,32 @@ function initializeMap() {
   if (map.getZoom() >= CIRCLE_MARKER_MIN_ZOOM) {
     circleMarkersGroup.addTo(map);
   }
+
+  // Add global zoom handler for track width updates
+  map.on('zoomend', () => {
+    const zoom = map.getZoom();
+    const newTrackWidth = getZoomAdaptiveTrackWidth(zoom);
+
+    const colorMode = document.getElementById('color-mode').value;
+
+    // Update non-gradient polylines
+    if (colorMode === COLOR_MODES.SINGLE || colorMode === COLOR_MODES.MULTI) {
+      flightPolylines.forEach(polyline => {
+        if (polyline && polyline.setStyle) {
+          polyline.setStyle({ weight: newTrackWidth });
+        }
+      });
+    }
+
+    // Update gradient segments
+    if (colorMode === COLOR_MODES.GRADIENT || colorMode === COLOR_MODES.GRADIENT_GLOBAL) {
+      gradientSegments.forEach(segment => {
+        if (segment && segment.setStyle) {
+          segment.setStyle({ weight: newTrackWidth });
+        }
+      });
+    }
+  });
 }
 
 /**
@@ -309,7 +343,10 @@ function fitMapToAllFlights() {
   // Fit the map to show all flights
   map.fitBounds(combinedBounds, { padding: [50, 50] });
 
+  const currentZoom = map.getZoom();
+  const trackWidth = getZoomAdaptiveTrackWidth(currentZoom);
   console.log(`Map fitted to show all ${allFlightBounds.length} flights`);
+  console.log(`Current zoom level: ${currentZoom.toFixed(2)}, Track width: ${trackWidth}px`);
 }
 
 /**

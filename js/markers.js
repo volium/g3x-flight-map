@@ -2,6 +2,9 @@
  * Marker creation and management
  */
 
+// Track if marker visibility handler has been set up
+let markerVisibilityHandlerSetup = false;
+
 /**
  * Create or get a low zoom marker for an airport
  * @param {string} airport - Airport code
@@ -36,6 +39,11 @@ function createLowZoomMarker(airport, position, color, label = null) {
  * Setup zoom-based marker visibility handler
  */
 function setupMarkerVisibilityHandler() {
+  // Only setup once to avoid duplicate handlers
+  if (markerVisibilityHandlerSetup) {
+    return;
+  }
+
   map.on('zoomend', () => {
     const zoom = map.getZoom();
     const showIntermediateStops = document.getElementById('show-intermediate-stops').checked;
@@ -58,4 +66,6 @@ function setupMarkerVisibilityHandler() {
       }
     }
   });
+
+  markerVisibilityHandlerSetup = true;
 }

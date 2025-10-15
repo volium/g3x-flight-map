@@ -2,17 +2,45 @@
  * Constants used throughout the application
  */
 
-// Flight path colors (cycles through these)
+// Flight path color modes
+const COLOR_MODES = {
+  SINGLE: 'single',
+  MULTI: 'multi',
+  GRADIENT: 'gradient',
+  GRADIENT_GLOBAL: 'gradient-global'
+};
+
+// Default single color for flights (vibrant blue)
+const SINGLE_FLIGHT_COLOR = "#0066FF";
+
+// Expanded flight path colors (30+ distinct colors for multiple flights)
 const FLIGHT_COLORS = [
-  "#ff0000",
-  "#ff8800",
-  "#ffaa00",
-  "#00aaff",
-  "#00cc66",
-  "#cc00ff",
-  "#ff0099",
-  "#0055ff",
+  "#FF3366", "#FF6B35", "#FF9500", "#FFB700", "#FFD700",  // Warm: Red → Orange → Yellow
+  "#B8E62E", "#7DCE13", "#00C853", "#00BFA5", "#00ACC1",  // Green → Teal
+  "#00A8FF", "#0091FF", "#0080FF", "#0066FF", "#0050FF",  // Blue spectrum
+  "#6C5CE7", "#8E44AD", "#9B59B6", "#C44569", "#E84393",  // Purple → Pink
+  "#E74C3C", "#E67E22", "#F39C12", "#F1C40F", "#FFC312",  // Bright warm
+  "#1ABC9C", "#16A085", "#27AE60", "#2ECC71", "#3498DB",  // Bright cool
+  "#9B59B6", "#8E44AD", "#E74C3C", "#C0392B", "#D35400"   // Additional variety
 ];
+
+// Modern track styling
+const TRACK_STYLE = {
+  weight: 4,           // Slightly thicker for modern look
+  opacity: 0.85,       // Slightly transparent
+  smoothFactor: 1.5,   // Smoother curves
+  lineCap: 'round',    // Rounded ends
+  lineJoin: 'round'    // Rounded corners
+};
+
+// Arrow styling for better visibility
+const ARROW_STYLE = {
+  size: 16,            // Larger arrows
+  fillOpacity: 1,      // Fully opaque
+  weight: 3,           // Thick outline
+  color: '#000000',    // Black outline
+  fillColor: '#FFFFFF' // White fill
+};
 
 // Label management constants
 const BASE_MIN_LABEL_DISTANCE = 50; // Base minimum pixels between labels

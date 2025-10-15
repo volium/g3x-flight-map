@@ -2,6 +2,9 @@
  * Event handlers for UI interactions
  */
 
+// Store label repositioning handler so it can be removed/re-added
+let labelRepositioningHandler = null;
+
 /**
  * Setup event handler for intermediate stops checkbox toggle
  */
@@ -81,14 +84,16 @@ function setupFileUploadHandler() {
     // Show initial progress with bar at 0%
     showProgress(0, totalFilesToProcess, 'Processing files...');
 
-    // Add handler for zoom changes to update label positions
-    map.off('zoomend'); // Remove any existing handlers first
+    // Remove previous label repositioning handler if it exists
+    if (labelRepositioningHandler) {
+      map.off('zoomend', labelRepositioningHandler);
+    }
 
-    // Setup marker visibility handler
+    // Setup marker visibility handler (only once)
     setupMarkerVisibilityHandler();
 
-    // Setup label repositioning handler
-    map.on('zoomend', () => {
+    // Define and setup label repositioning handler
+    labelRepositioningHandler = () => {
       // Store existing airports (departure/arrival) and clear the map
       const existingAirports = Array.from(labeledAirports.entries());
       labeledAirports.forEach((details) => {
@@ -117,7 +122,10 @@ function setupFileUploadHandler() {
         const newDetails = createAirportLabel(code, details.position, details.color, null, showIntermediateStops);
         intermediateStopLabels.set(code, newDetails);
       });
-    });
+    };
+
+    // Add the label repositioning handler
+    map.on('zoomend', labelRepositioningHandler);
 
     // Process files in parallel with progress tracking
     console.log('Processing all flight files in parallel...');
@@ -146,12 +154,35 @@ function setupFileUploadHandler() {
     // Update progress message
     updateProgressMessage('Rendering flights to map...');
 
+    // Store flight data for potential re-rendering
+    loadedFlights = validFlights;
+
+    // Check if we need to calculate global gradient info
+    const colorMode = document.getElementById('color-mode').value;
+    let totalPointsAllFlights = 0;
+    let cumulativePoints = [];
+
+    if (colorMode === COLOR_MODES.GRADIENT_GLOBAL) {
+      // Calculate cumulative point counts for global gradient
+      validFlights.forEach((flightData) => {
+        cumulativePoints.push(totalPointsAllFlights);
+        totalPointsAllFlights += flightData.latlngs.length;
+      });
+    }
+
     // Render all flights
     validFlights.forEach((flightData, index) => {
       try {
         const color = getNextFlightColor();
         console.log(`Rendering flight ${index + 1}/${validFlights.length}: ${flightData.filename} with color ${color}`);
-        const polyline = renderFlight(flightData, color);
+
+        const polyline = renderFlight(
+          flightData,
+          color,
+          colorMode === COLOR_MODES.GRADIENT_GLOBAL ? cumulativePoints[index] : 0,
+          colorMode === COLOR_MODES.GRADIENT_GLOBAL ? totalPointsAllFlights : 0
+        );
+
         allFlightBounds.push(polyline.getBounds());
       } catch (error) {
         console.error(`Error rendering flight ${flightData.filename}:`, error);
@@ -179,10 +210,25 @@ function setupFileUploadHandler() {
 }
 
 /**
+ * Setup event handler for color mode changes
+ */
+function setupColorModeHandler() {
+  document.getElementById("color-mode").addEventListener("change", (event) => {
+    console.log(`Color mode changed to: ${event.target.value}`);
+
+    // Only re-render if flights are loaded
+    if (loadedFlights.length > 0) {
+      reRenderAllFlights();
+    }
+  });
+}
+
+/**
  * Setup all event handlers
  */
 function setupEventHandlers() {
   setupIntermediateStopsToggle();
   setupFileUploadHandler();
   setupMarkerVisibilityHandler();
+  setupColorModeHandler();
 }
