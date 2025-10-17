@@ -106,7 +106,7 @@ function adjustLabelPosition(airport, position, existingLabels) {
  * Create airport label with connector line if needed
  * @param {string} airport - Airport code
  * @param {Array} position - [lat, lon] position array
- * @param {string} color - Color for the label
+ * @param {string} color - Color for the label connector line
  * @param {Map|null} existingLabels - Optional map of existing labels
  * @param {boolean} addToMap - Whether to add the label to the map immediately
  * @returns {Object} Object containing label, connector, positions, and color
@@ -116,12 +116,26 @@ function createAirportLabel(airport, position, color, existingLabels = null, add
   const labelsToCheck = existingLabels || new Map([...labeledAirports, ...intermediateStopLabels]);
   const adjustedPosition = adjustLabelPosition(airport, position, labelsToCheck);
 
-  // Create label
+  // Create label with clean, minimal styling
   const label = L.marker(adjustedPosition, {
     icon: L.divIcon({
       className: 'airport-label',
-      html: `<div style="color: ${color}; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 4px; border-radius: 3px;">${airport}</div>`,
-      iconSize: [40, 20],
+      html: `<div style="
+        color: #1a1a1a;
+        font-weight: 700;
+        font-size: 14px;
+        font-family: system-ui, -apple-system, sans-serif;
+        text-shadow:
+          -1px -1px 0 white,
+          1px -1px 0 white,
+          -1px 1px 0 white,
+          1px 1px 0 white,
+          0 0 3px white,
+          0 0 6px rgba(255, 255, 255, 0.8);
+        white-space: nowrap;
+        letter-spacing: 0.5px;
+      ">${airport}</div>`,
+      iconSize: [null, null],
       iconAnchor: [20, 10]
     })
   });
@@ -134,10 +148,10 @@ function createAirportLabel(airport, position, color, existingLabels = null, add
   let connector = null;
   if (adjustedPosition.lat !== position.lat || adjustedPosition.lng !== position.lng) {
     connector = L.polyline([position, adjustedPosition], {
-      color: color,
-      weight: 1,
-      opacity: 0.5,
-      dashArray: '3,3'
+      color: '#666666',
+      weight: 1.5,
+      opacity: 0.6,
+      dashArray: '4,4'
     });
 
     if (addToMap) {

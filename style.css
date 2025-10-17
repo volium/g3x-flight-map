@@ -144,3 +144,25 @@ h1 {
   width: 100%;
   border-top: 2px solid #ccc;
 }
+
+/* Airport label styling */
+.airport-label {
+  border: none !important;
+  background: transparent !important;
+}
+
+.airport-label > div {
+  transition: all 0.15s ease;
+  cursor: default;
+}
+
+.airport-label > div:hover {
+  transform: scale(1.08);
+  text-shadow:
+    -1.5px -1.5px 0 white,
+    1.5px -1.5px 0 white,
+    -1.5px 1.5px 0 white,
+    1.5px 1.5px 0 white,
+    0 0 4px white,
+    0 0 8px rgba(255, 255, 255, 0.9) !important;
+}
