@@ -151,18 +151,74 @@ h1 {
   background: transparent !important;
 }
 
-.airport-label > div {
+.airport-label-text {
   transition: all 0.15s ease;
-  cursor: default;
 }
 
-.airport-label > div:hover {
-  transform: scale(1.08);
+.airport-label-text:hover,
+.airport-label-text.airport-hover {
+  transform: scale(1.1);
   text-shadow:
     -1.5px -1.5px 0 white,
     1.5px -1.5px 0 white,
     -1.5px 1.5px 0 white,
     1.5px 1.5px 0 white,
-    0 0 4px white,
-    0 0 8px rgba(255, 255, 255, 0.9) !important;
+    0 0 5px white,
+    0 0 10px rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Low-zoom marker styling */
+.airport-marker {
+  border: none !important;
+  background: transparent !important;
+}
+
+.airport-marker-dot {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.airport-marker-dot:hover,
+.airport-marker-dot.airport-hover {
+  transform: scale(1.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+  background-color: #0066FF !important;
+}
+
+/* High-zoom circle marker styling */
+.airport-circle-marker {
+  cursor: pointer;
+}
+
+.airport-circle-marker-departure path,
+.airport-circle-marker-departure circle,
+.airport-circle-marker-arrival path,
+.airport-circle-marker-arrival circle {
+  transition: fill 0.2s ease, stroke-width 0.2s ease, filter 0.2s ease;
+}
+
+/* Hover effect for circle markers - departure (green) */
+.airport-circle-marker-departure.circle-marker-hover path,
+.airport-circle-marker-departure.circle-marker-hover circle {
+  fill: #00DD66 !important;
+  stroke-width: 3 !important;
+  filter: drop-shadow(0 2px 6px rgba(0, 170, 85, 0.6));
+}
+
+/* Hover effect for circle markers - arrival (red) */
+.airport-circle-marker-arrival.circle-marker-hover path,
+.airport-circle-marker-arrival.circle-marker-hover circle {
+  fill: #FF4444 !important;
+  stroke-width: 3 !important;
+  filter: drop-shadow(0 2px 6px rgba(221, 51, 51, 0.6));
+}
+
+/* Prevent any SVG path transitions that could cause artifacts during zoom */
+.leaflet-zoom-animated {
+  transition: none !important;
+}
+
+/* Circle markers should have no transform transitions during zoom */
+.leaflet-zoom-hide {
+  opacity: 0 !important;
 }

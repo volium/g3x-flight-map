@@ -254,10 +254,7 @@ function initializeMap() {
     collapsed: true
   }).addTo(map);
 
-  // Set initial visibility of circle markers based on zoom level
-  if (map.getZoom() >= CIRCLE_MARKER_MIN_ZOOM) {
-    circleMarkersGroup.addTo(map);
-  }
+  // Note: Initial marker visibility is now handled by setupMarkerVisibilityHandler in markers.js
 
   // Add global zoom handler for track width updates
   map.on('zoomend', () => {

@@ -13,32 +13,20 @@ function setupIntermediateStopsToggle() {
     const showIntermediateStops = event.target.checked;
 
     if (showIntermediateStops) {
-      // Show intermediate stops markers
-      const zoom = map.getZoom();
-      if (zoom >= CIRCLE_MARKER_MIN_ZOOM) {
-        intermediateStopsCircleMarkersGroup.addTo(map);
-        intermediateStopsLowZoomMarkersGroup.remove();
-      } else {
-        intermediateStopsLowZoomMarkersGroup.addTo(map);
-        intermediateStopsCircleMarkersGroup.remove();
-      }
-
       // Show intermediate stop labels
       intermediateStopLabels.forEach((details) => {
         if (details.label) details.label.addTo(map);
         if (details.connector) details.connector.addTo(map);
       });
     } else {
-      // Hide intermediate stops markers
-      intermediateStopsCircleMarkersGroup.remove();
-      intermediateStopsLowZoomMarkersGroup.remove();
-
       // Hide intermediate stop labels
       intermediateStopLabels.forEach((details) => {
         if (details.label) details.label.remove();
         if (details.connector) details.connector.remove();
       });
     }
+
+    // Note: Marker visibility is now handled by setupMarkerVisibilityHandler via CSS
   });
 }
 
@@ -224,6 +212,126 @@ function setupColorModeHandler() {
 }
 
 /**
+ * Setup synchronized hover effects between markers and labels
+ */
+function setupSynchronizedHoverEffects() {
+  // Use event delegation on the map container
+  const mapElement = document.getElementById('map');
+
+  mapElement.addEventListener('mouseover', (e) => {
+    let airportCode = null;
+    let elementToHighlight = null;
+
+    // Check if hovering over a low-zoom marker dot
+    if (e.target.classList.contains('airport-marker-dot')) {
+      airportCode = e.target.getAttribute('data-airport');
+    }
+
+    // Check if hovering over a label
+    if (e.target.classList.contains('airport-label-text')) {
+      airportCode = e.target.getAttribute('data-airport');
+    }
+
+    // Check if hovering over a circle marker (SVG path or circle element)
+    const svgElement = e.target.tagName === 'path' || e.target.tagName === 'circle' ? e.target : null;
+    if (svgElement && svgElement.parentElement) {
+      const circleMarkerGroup = svgElement.parentElement;
+
+      // Check if this is an airport circle marker
+      if (circleMarkerGroup.classList.contains('airport-circle-marker-departure') ||
+          circleMarkerGroup.classList.contains('airport-circle-marker-arrival')) {
+
+        // Note: Circle markers now handle their own hover independently
+        // They don't synchronize with labels/markers
+        return;
+      }
+    }
+
+    if (airportCode) {
+      // Find and highlight all related elements
+      const labels = document.querySelectorAll(`.airport-label-text[data-airport="${airportCode}"]`);
+      labels.forEach(label => label.classList.add('airport-hover'));
+
+      const markers = document.querySelectorAll(`.airport-marker-dot[data-airport="${airportCode}"]`);
+      markers.forEach(marker => marker.classList.add('airport-hover'));
+
+      // Highlight all circle markers with this airport code
+      circleMarkersGroup.eachLayer(layer => {
+        if (layer._airportCode === airportCode) {
+          const element = layer.getElement();
+          if (element) {
+            element.classList.add('circle-marker-hover');
+
+            // Also increase the radius directly on the SVG path element
+            const pathElement = element.querySelector('path');
+            if (pathElement) {
+              pathElement.setAttribute('data-original-radius', layer.options.radius);
+              layer.setRadius(layer.options.radius * 1.4);
+            }
+          }
+        }
+      });
+    }
+  });
+
+  mapElement.addEventListener('mouseout', (e) => {
+    let airportCode = null;
+
+    // Check what we're leaving
+    if (e.target.classList.contains('airport-marker-dot')) {
+      airportCode = e.target.getAttribute('data-airport');
+    }
+
+    if (e.target.classList.contains('airport-label-text')) {
+      airportCode = e.target.getAttribute('data-airport');
+    }
+
+    // Check if leaving a circle marker
+    const svgElement = e.target.tagName === 'path' || e.target.tagName === 'circle' ? e.target : null;
+    if (svgElement && svgElement.parentElement) {
+      const circleMarkerGroup = svgElement.parentElement;
+
+      if (circleMarkerGroup.classList.contains('airport-circle-marker-departure') ||
+          circleMarkerGroup.classList.contains('airport-circle-marker-arrival')) {
+
+        circleMarkersGroup.eachLayer(layer => {
+          if (layer.getElement && layer.getElement() === circleMarkerGroup) {
+            airportCode = layer._airportCode;
+          }
+        });
+      }
+    }
+
+    if (airportCode) {
+      // Remove hover class from all related elements
+      const markers = document.querySelectorAll(`.airport-marker-dot[data-airport="${airportCode}"]`);
+      markers.forEach(marker => marker.classList.remove('airport-hover'));
+
+      const labels = document.querySelectorAll(`.airport-label-text[data-airport="${airportCode}"]`);
+      labels.forEach(label => label.classList.remove('airport-hover'));
+
+      // Remove hover from all circle markers and restore original radius
+      circleMarkersGroup.eachLayer(layer => {
+        if (layer._airportCode === airportCode) {
+          const element = layer.getElement();
+          if (element) {
+            element.classList.remove('circle-marker-hover');
+
+            // Restore original radius
+            const pathElement = element.querySelector('path');
+            if (pathElement && pathElement.hasAttribute('data-original-radius')) {
+              const originalRadius = parseFloat(pathElement.getAttribute('data-original-radius'));
+              layer.setRadius(originalRadius);
+              pathElement.removeAttribute('data-original-radius');
+            }
+          }
+        }
+      });
+    }
+  });
+}
+
+/**
  * Setup all event handlers
  */
 function setupEventHandlers() {
@@ -231,4 +339,5 @@ function setupEventHandlers() {
   setupFileUploadHandler();
   setupMarkerVisibilityHandler();
   setupColorModeHandler();
+  setupSynchronizedHoverEffects();
 }

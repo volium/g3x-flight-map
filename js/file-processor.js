@@ -209,13 +209,36 @@ function renderFlight(flightData, color, cumulativePointsBefore = 0, totalPoints
   // Add departure airport marker and label
   if (departureAirport) {
     const startMarker = L.circleMarker(start, {
-      radius: 6,
-      color: color,
-      fillColor: "white",
+      radius: 7,
+      color: "white",
+      fillColor: "#00AA55",  // Green for departure
       fillOpacity: 1,
+      weight: 2,
+      className: 'airport-circle-marker airport-circle-marker-departure'
     })
       .bindPopup(`<b>${departureAirport}</b><br>Departure`)
       .addTo(circleMarkersGroup);
+
+    // Store reference for hover effect
+    startMarker._airportCode = departureAirport;
+    startMarker._markerType = 'departure';
+
+    // Add hover event handlers using Leaflet's API - only affects the circle marker itself
+    startMarker.on('mouseover', function() {
+      const element = this.getElement();
+      if (element) {
+        element.classList.add('circle-marker-hover');
+        this.setRadius(this.options.radius * 1.4);
+      }
+    });
+
+    startMarker.on('mouseout', function() {
+      const element = this.getElement();
+      if (element) {
+        element.classList.remove('circle-marker-hover');
+        this.setRadius(7);  // Reset to original size
+      }
+    });
 
     // Add airport code label for departure if not already labeled
     if (!labeledAirports.has(departureAirport)) {
@@ -236,13 +259,36 @@ function renderFlight(flightData, color, cumulativePointsBefore = 0, totalPoints
   // Add arrival marker and label if we found an airport
   if (arrivalAirport) {
     const endMarker = L.circleMarker(end, {
-      radius: 6,
-      color: color,
-      fillColor: "white",
-      fillOpacity: 0.9,
+      radius: 7,
+      color: "white",
+      fillColor: "#DD3333",  // Red for arrival
+      fillOpacity: 1,
+      weight: 2,
+      className: 'airport-circle-marker airport-circle-marker-arrival'
     })
       .bindPopup(`<b>${arrivalAirport}</b><br>Arrival`)
       .addTo(circleMarkersGroup);
+
+    // Store reference for hover effect
+    endMarker._airportCode = arrivalAirport;
+    endMarker._markerType = 'arrival';
+
+    // Add hover event handlers using Leaflet's API - only affects the circle marker itself
+    endMarker.on('mouseover', function() {
+      const element = this.getElement();
+      if (element) {
+        element.classList.add('circle-marker-hover');
+        this.setRadius(this.options.radius * 1.4);
+      }
+    });
+
+    endMarker.on('mouseout', function() {
+      const element = this.getElement();
+      if (element) {
+        element.classList.remove('circle-marker-hover');
+        this.setRadius(7);  // Reset to original size
+      }
+    });
 
     // Add airport code label for arrival if not already labeled
     if (!labeledAirports.has(arrivalAirport)) {

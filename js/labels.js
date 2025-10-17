@@ -120,7 +120,7 @@ function createAirportLabel(airport, position, color, existingLabels = null, add
   const label = L.marker(adjustedPosition, {
     icon: L.divIcon({
       className: 'airport-label',
-      html: `<div style="
+      html: `<div class="airport-label-text" data-airport="${airport}" style="
         color: #1a1a1a;
         font-weight: 700;
         font-size: 14px;
@@ -134,6 +134,7 @@ function createAirportLabel(airport, position, color, existingLabels = null, add
           0 0 6px rgba(255, 255, 255, 0.8);
         white-space: nowrap;
         letter-spacing: 0.5px;
+        cursor: pointer;
       ">${airport}</div>`,
       iconSize: [null, null],
       iconAnchor: [20, 10]
